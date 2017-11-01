@@ -135,8 +135,8 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
     pagination = query_metadata['pagination'] if 'pagination' in query_metadata else ""
     glogger.debug("Read query pagination: {}".format(pagination))
 
-    enums = query_metadata['enumerate'] if 'enumerate' in query_metadata else []
-    glogger.debug("Read query enumerates: {}".format(', '.join(enums)))
+    # enums = query_metadata['enumerate'] if 'enumerate' in query_metadata else []
+    # glogger.debug("Read query enumerates: {}".format(', '.join(enums)))
 
     mime = query_metadata['mime'] if 'mime' in query_metadata else ""
     glogger.debug("Read endpoint dump MIME type: {}".format(mime))
@@ -150,7 +150,7 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
             parameters = gquery.get_parameters(query_text, endpoint)
         except Exception as e:
             glogger.error(e)
-            glogger.error("Could not parse parameters of query {}".format(raw_query_uri))
+            glogger.error("Could not parse parameters of query {}".format(query_text))
             return None
 
         glogger.debug("Read request parameters")
