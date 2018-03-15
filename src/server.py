@@ -1,22 +1,21 @@
 #!/usr/bin/env python
 
 # server.py: the grlc server
-
 from flask import Flask, request, jsonify, render_template, make_response
 import requests
 import logging
 import re
 from rdflib import Graph
-from github import Github
 
 # grlc modules
+from grlc import __version__ as grlc_version
 import static as static
 import gquery as gquery
 import utils as utils
-from prov import grlcPROV
+import pagination as pageUtils
 
-from fileLoaders import GithubLoader, LocalLoader
 import sparql as sparql
+from queryTypes import qType
 
 # The Flask app
 app = Flask(__name__)
@@ -28,15 +27,13 @@ glogger = logging.getLogger(__name__)
 
 # Server routes
 @app.route('/')
-def grlc():
+def grlcIndex():
     resp = make_response(render_template('index.html'))
     return resp
 
 @app.route('/api/local/local/<query_name>', methods=['GET'])
 def query_local(query_name):
     return query(user=None, repo=None, query_name=query_name)
-
-from queryTypes import qType
 
 @app.route('/api/<user>/<repo>/<query_name>', methods=['GET'])
 @app.route('/api/<user>/<repo>/<query_name>.<extension>', methods=['GET'])
@@ -46,10 +43,7 @@ def query(user, repo, query_name, sha=None, extension=None):
     glogger.debug("-----> Executing call name at /{}/{}/{} on commit {}".format(user, repo, query_name, sha))
     glogger.debug("Request accept header: " + request.headers["Accept"])
 
-    if user is None and repo is None:
-        loader = LocalLoader()
-    else:
-        loader = GithubLoader(user, repo, sha, None)
+    loader = utils.getLoader(user, repo, sha, prov=None)
 
     query, q_type = loader.getTextForName(query_name)
 
@@ -81,23 +75,17 @@ def query(user, repo, query_name, sha=None, extension=None):
         if 'mime' in query_metadata and query_metadata['mime']:
             g = Graph()
             try:
-                query_metadata = gquery.get_metadata(raw_sparql_query)
                 g.parse(endpoint, format=query_metadata['mime'])
             except Exception as e:
                 glogger.error(e)
             results = g.query(paginated_query, result='sparql')
-            # glogger.debug("Results of SPARQL query against locally loaded dump:")
             # Prepare return format as requested
             resp_string = ""
-            # glogger.debug("Requested formats: {}".format(request.headers['Accept']))
-            # if content:
-            #     glogger.debug("Requested formats from extension: {}".format(static.mimetypes[content]))
+
             if 'application/json' in request.headers['Accept'] or (extension and 'application/json' in static.mimetypes[extension]):
                 resp_string = results.serialize(format='json')
             elif 'text/csv' in request.headers['Accept'] or (extension and 'text/csv' in static.mimetypes[extension]):
                 resp_string = results.serialize(format='csv')
-            # elif 'text/html' in request.headers['Accept']:
-            #     resp_string = results.serialize(format='html')
             else:
                 return 'Unacceptable requested format', 415
             del g
@@ -111,32 +99,17 @@ def query(user, repo, query_name, sha=None, extension=None):
                 returnFormat = sparql.selectReturnFormat(request.headers['Accept'])
             response = sparql.executeSPARQLQuery(endpoint, paginated_query, returnFormat)
 
-            resp = make_response(response)
-            resp.headers['Server'] = 'grlc/1.0.0'
-            resp.headers['Content-Type'] = request.headers['Accept']
+            # Response headers
+            resp = make_response(response.text)
+            resp.headers['Server'] = 'grlc/' + grlc_version
+            resp.headers['Content-Type'] = response.headers['Content-Type']
 
         # If the query is paginated, set link HTTP headers
         if pagination:
             # Get number of total results
             count = gquery.count_query_results(rewritten_query, endpoint)
-            page = 1
-            if 'page' in request.args:
-                page = int(request.args['page'])
-                next_url = re.sub("page=[0-9]+", "page={}".format(page + 1), request.url)
-                prev_url = re.sub("page=[0-9]+", "page={}".format(page - 1), request.url)
-                first_url = re.sub("page=[0-9]+", "page=1", request.url)
-                last_url = re.sub("page=[0-9]+", "page={}".format(count / pagination), request.url)
-            else:
-                next_url = request.url + "?page={}".format(page + 1)
-                prev_url = request.url + "?page={}".format(page - 1)
-                first_url = request.url + "?page={}".format(page)
-                last_url = request.url + "?page={}".format(count / pagination)
-            if page == 1:
-                resp.headers['Link'] = "<{}>; rel=next, <{}>; rel=last".format(next_url, last_url)
-            elif page == count / pagination:
-                resp.headers['Link'] = "<{}>; rel=prev, <{}>; rel=first".format(prev_url, first_url)
-            else:
-                resp.headers['Link'] = "<{}>; rel=next, <{}>; rel=prev, <{}>; rel=first, <{}>; rel=last".format(next_url, prev_url, first_url, last_url)
+            headerLink =  pageUtils.buildPaginationHeader(count, pagination)
+            resp.headers['Link'] = headerLink
 
         return resp
     # Call name implemented with TPF query
@@ -166,7 +139,7 @@ def query(user, repo, query_name, sha=None, extension=None):
 
         # Response headers
         resp = make_response(response.text)
-        resp.headers['Server'] = 'grlc/1.0.0'
+        resp.headers['Server'] = 'grlc/' + grlc_version
         resp.headers['Content-Type'] = response.headers['Content-Type']
 
         return resp
@@ -194,28 +167,11 @@ def api_docs(user, repo, sha=None):
 def swagger_spec(user, repo, sha=None, content=None):
     glogger.info("-----> Generating swagger spec for /{}/{} on commit {}".format(user,repo,sha))
 
-    # Init provenance recording
-    if user is not None and repo is not None:
-        prov_g = grlcPROV(user, repo)
-        gh = Github(static.ACCESS_TOKEN)
-        gh_repo = gh.get_repo(user + '/' + repo)
-    else:
-        prov_g = None
-        gh_repo = None
-
-    swag = utils.build_swagger_spec(user, repo, sha, static.SERVER_NAME, prov_g, gh_repo)
-
-    if user is not None and repo is not None:
-        prov_g.end_prov_graph()
-        swag['prov'] = prov_g.serialize(format='turtle')
-    # prov_g.log_prov_graph()
+    swag = utils.build_swagger_spec(user, repo, sha, static.SERVER_NAME)
 
     resp_spec = make_response(jsonify(swag))
-    resp_spec.headers['Content-Type'] = 'application/json'
 
-    if 'text/turtle' in request.headers['Accept']:
-        resp_spec = make_response(utils.turtleize(swag))
-        resp_spec.headers['Content-Type'] = 'text/turtle'
+    resp_spec.headers['Content-Type'] = 'application/json'
 
     resp_spec.headers['Cache-Control'] = static.CACHE_CONTROL_POLICY # Caching JSON specs for 15 minutes
 

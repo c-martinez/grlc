@@ -1,32 +1,31 @@
 import static as static
 import gquery as gquery
+import pagination as pageUtils
 import cgi
-from rdflib import Graph
 import traceback
 
 import logging
+from github import Github
 
+from prov import grlcPROV
 from fileLoaders import GithubLoader, LocalLoader
 from sparql import SPARQL_FORMATS
 
 glogger = logging.getLogger(__name__)
 
-def turtleize(swag):
-    '''
-    Transforoms a JSON swag object into a text/turtle LDA equivalent representation
-    '''
-    swag_graph = Graph()
 
-    return swag_graph.serialize(format='turtle')
+def getLoader(user, repo, sha=None, prov=None):
+    if user is None and repo is None:
+        loader = LocalLoader()
+    else:
+        loader = GithubLoader(user, repo, sha, prov)
+    return loader
 
 def build_spec(user, repo, sha=None, prov=None, extraMetadata=[]):
     '''
     Build grlc specification for the given github user / repo
     '''
-    if user is None and repo is None:
-        loader = LocalLoader()
-    else:
-        loader = GithubLoader(user, repo, sha, prov)
+    loader = getLoader(user, repo, sha, prov)
 
     files = loader.fetchFiles()
     raw_repo_uri = loader.getRawRepoUri()
@@ -43,21 +42,21 @@ def build_spec(user, repo, sha=None, prov=None, extraMetadata=[]):
             # Retrieve extra metadata from the query decorators
             query_text = loader.getTextFor(c)
 
-            item = None
             if ".rq" in c_name or ".sparql" in c_name:
                 glogger.info("===================================================================")
                 glogger.info("Processing SPARQL query: {}".format(c_name))
                 glogger.info("===================================================================")
                 item = process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata)
+                items.append(item)
             elif ".tpf" in c['name']:
                 glogger.info("===================================================================")
                 glogger.info("Processing TPF query: {}".format(c_name))
                 glogger.info("===================================================================")
                 item = process_tpf_query_text(query_text, raw_repo_uri, call_name, extraMetadata)
+                items.append(item)
             else:
                 glogger.info("Ignoring unsupported source call name: {}".format(c_name))
-            if item:
-                items.append(item)
+
     return items
 
 def process_tpf_query_text(query_text, raw_repo_uri, call_name, extraMetadata):
@@ -79,31 +78,16 @@ def process_tpf_query_text(query_text, raw_repo_uri, call_name, extraMetadata):
     pagination = query_metadata['pagination'] if 'pagination' in query_metadata else ""
     glogger.debug("Read query pagination: " + str(pagination))
 
-    # enums = query_metadata['enumerate'] if 'enumerate' in query_metadata else []
-    # glogger.debug("Read query enumerates: " + ', '.join(enums))
-
     endpoint = query_metadata['endpoint'] if 'endpoint' in query_metadata else ""
     glogger.debug("Read query endpoint: " + endpoint)
 
     # If this query allows pagination, add page number as parameter
     params = []
     if pagination:
-        pagination_param = {}
-        pagination_param['name'] = "page"
-        pagination_param['type'] = "int"
-        pagination_param['in'] = "query"
-        pagination_param['description'] = "The page number for this paginated query ({} results per page)".format(pagination)
-        params.append(pagination_param)
+        params.append(pageUtils.getSwaggerPaginationDef(pagination))
 
-    item = {
-        'call_name': call_name,
-        'method': method,
-        'tags': tags,
-        'summary': summary,
-        'description': description,
-        'params': params,
-        'query': query_metadata['query']
-    }
+    item = getItemDefinition(call_name=call_name, method=method, tags=tags,
+        summary=summary, description=description, params=params, query=query_metadata['query'])
 
     for extraField in extraMetadata:
         if extraField in query_metadata:
@@ -136,9 +120,6 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
     pagination = query_metadata['pagination'] if 'pagination' in query_metadata else ""
     glogger.debug("Read query pagination: {}".format(pagination))
 
-    # enums = query_metadata['enumerate'] if 'enumerate' in query_metadata else []
-    # glogger.debug("Read query enumerates: {}".format(', '.join(enums)))
-
     mime = query_metadata['mime'] if 'mime' in query_metadata else ""
     glogger.debug("Read endpoint dump MIME type: {}".format(mime))
 
@@ -156,32 +137,16 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
             glogger.error("Could not parse parameters of query {}".format(call_name))
             return None
 
-        glogger.debug("Read request parameters")
-        # glogger.debug(parameters)
         # TODO: do something intelligent with the parameters!
         # As per #3, prefetching IRIs via SPARQL and filling enum
 
         params = []
         for v, p in list(parameters.items()):
-            param = {}
-            param['name'] = p['name']
-            param['type'] = p['type']
-            param['required'] = p['required']
-            param['in'] = "query"
-            param['description'] = "A value of type {} that will substitute {} in the original query".format(p['type'], p['original'])
-            if p['enum']:
-                param['enum'] = p['enum']
-
-            params.append(param)
+            params.append(getParameterDefinition(p))
 
     # If this query allows pagination, add page number as parameter
     if pagination:
-        pagination_param = {}
-        pagination_param['name'] = "page"
-        pagination_param['type'] = "int"
-        pagination_param['in'] = "query"
-        pagination_param['description'] = "The page number for this paginated query ({} results per page)".format(pagination)
-        params.append(pagination_param)
+        params.append(pageUtils.getSwaggerPaginationDef(pagination))
 
     if endpoint_in_url:
         endpoint_param = {}
@@ -197,47 +162,17 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
             method = 'get'
         item_properties = {}
         for pv in query_metadata['variables']:
-            item_properties[pv] = {
-                "name": pv,
-                "type": "object",
-                "required": ["type", "value"],
-                "properties": {
-                    "type": {
-                        "type": "string"
-                    },
-                    "value": {
-                        "type": "string"
-                    },
-                    "xml:lang": {
-                        "type": "string"
-                    },
-                    "datatype": {
-                        "type": "string"
-                    }
-                }
-            }
-        item = {
-            'call_name': call_name,
-            'method': method,
-            'tags': tags,
-            'summary': summary,
-            'description': description,
-            'params': params,
-            'item_properties': item_properties,
-            'query': query_metadata['query']
-        }
+            item_properties[pv] = getItemPropertyDef(pv)
+        item = getItemDefinition(call_name=call_name, method=method, tags=tags,
+            summary=summary, description=description, params=params,
+            item_properties=item_properties, query=query_metadata['query'])
+
     else:
         # We know it is an UPDATE; ignore params and props
         if not method:
             method = 'post'
-        item = {
-            'call_name': call_name,
-            'method': method,
-            'tags': tags,
-            'summary': summary,
-            'description': description,
-            'query': query_metadata['query']
-        }
+        item = getItemDefinition(call_name=call_name, method=method, tags=tags,
+            summary=summary, description=description, query=query_metadata['query'])
 
     for extraField in extraMetadata:
         if extraField in query_metadata:
@@ -245,47 +180,55 @@ def process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata
 
     return item
 
-def build_swagger_spec(user, repo, sha, serverName, prov, gh_repo):
-    '''Build grlc specification for the given github user / repo in swagger format '''
-    if user is None and repo is None:
-        user_repo = 'local/local'
-        prev_commit = []
-        next_commit = []
-        version = 'local'
-        repo_title = 'local'
-        contact_name = ''
-        contact_url = ''
-    else:
-        user_repo = user + '/' + repo
-        api_repo_uri = static.GITHUB_API_BASE_URL + user_repo
+def getItemPropertyDef(pv):
+    return {
+        "name": pv,
+        "type": "object",
+        "required": ["type", "value"],
+        "properties": {
+            "type": {
+                "type": "string"
+            },
+            "value": {
+                "type": "string"
+            },
+            "xml:lang": {
+                "type": "string"
+            },
+            "datatype": {
+                "type": "string"
+            }
+        }
+    }
 
-        repo_title = gh_repo.name
-        contact_name = gh_repo.owner.login
-        contact_url = gh_repo.owner.html_url
+def getItemDefinition(call_name, method, tags, summary, description, query, params=None, item_properties=None):
+    item = {
+        'call_name': call_name,
+        'method': method,
+        'tags': tags,
+        'summary': summary,
+        'description': description,
+        'query': query
+    }
+    if params:
+        item['params'] = params
+    if params:
+        item['item_properties'] = item_properties
+    return item
 
-        # Add the API URI as a used entity by the activity
-        if prov is not None:
-            prov.add_used_entity(api_repo_uri)
+def getParameterDefinition(p):
+    param = {}
+    param['name'] = p['name']
+    param['type'] = p['type']
+    param['required'] = p['required']
+    param['in'] = "query"
+    param['description'] = "A value of type {} that will substitute {} in the original query".format(p['type'], p['original'])
+    if p['enum']:
+        param['enum'] = p['enum']
+    return param
 
-        commit_list = [ c.sha for c in gh_repo.get_commits() ]
-
-        prev_commit = None
-        next_commit = None
-
-        version = sha
-        if sha is None:
-            version = commit_list[0]
-
-        if commit_list.index(version) < len(commit_list) - 1:
-            prev_commit = commit_list[commit_list.index(version)+1]
-        if commit_list.index(version) > 0:
-            next_commit = commit_list[commit_list.index(version)-1]
-
-    swag = {}
-    swag['prev_commit'] = prev_commit
-    swag['next_commit'] = next_commit
-    swag['swagger'] = '2.0'
-    swag['info'] = {
+def getInfoDefinition(version, repo_title, contact_name, contact_url, user_repo):
+    return {
         'version': version,
         'title': repo_title,
         'contact': {
@@ -297,19 +240,12 @@ def build_swagger_spec(user, repo, sha, serverName, prov, gh_repo):
             'url': static.GITHUB_RAW_BASE_URL + user_repo + '/master/LICENSE'
         }
     }
-    swag['host'] = serverName
-    swag['basePath'] = '/api/' + user_repo + '/'
-    if sha is not None:
-        swag['basePath'] = '/api/' + user_repo + '/commit/' + sha + '/'
-    swag['schemes'] = ['http']
-    swag['paths'] = {}
 
-    spec = build_spec(user, repo, sha, prov)
-    # glogger.debug("Current internal spec data structure")
-    # glogger.debug(spec)
+def getPathsDefFromSpec(spec):
+    swag_paths = {}
     for item in spec:
-        swag['paths'][item['call_name']] = {}
-        swag['paths'][item['call_name']][item['method']] = {
+        swag_paths[item['call_name']] = {}
+        swag_paths[item['call_name']][item['method']] = {
             "tags" : item['tags'],
             "summary" : item['summary'],
             "description" : item['description'] + "\n<pre>\n{}\n</pre>".format(cgi.escape(item['query'])),
@@ -334,4 +270,64 @@ def build_swagger_spec(user, repo, sha, serverName, prov, gh_repo):
                 }
             }
         }
+    return swag_paths
+
+def build_swagger_spec(user, repo, sha, serverName):
+    '''Build grlc specification for the given github user / repo in swagger format '''
+
+    if user and repo:
+        user_repo = user + '/' + repo
+        api_repo_uri = static.GITHUB_API_BASE_URL + user_repo
+
+        # Init provenance recording
+        prov_g = grlcPROV(user, repo)
+        gh = Github(static.ACCESS_TOKEN)
+        gh_repo = gh.get_repo(user + '/' + repo)
+
+        repo_title = gh_repo.name
+        contact_name = gh_repo.owner.login
+        contact_url = gh_repo.owner.html_url
+
+        # Add the API URI as a used entity by the activity
+        prov_g.add_used_entity(api_repo_uri)
+
+        commit_list = [ c.sha for c in gh_repo.get_commits() ]
+
+        prev_commit = None
+        next_commit = None
+
+        version = sha
+        if sha is None:
+            version = commit_list[0]
+
+        if commit_list.index(version) < len(commit_list) - 1:
+            prev_commit = commit_list[commit_list.index(version)+1]
+        if commit_list.index(version) > 0:
+            next_commit = commit_list[commit_list.index(version)-1]
+    else:
+        user_repo = 'local/local'
+        prev_commit = []
+        next_commit = []
+        version = 'local'
+        repo_title = 'local'
+        contact_name = ''
+        contact_url = ''
+        prov_g = None
+
+    spec = build_spec(user, repo, sha, prov_g)
+
+    swag = {}
+    swag['prev_commit'] = prev_commit
+    swag['next_commit'] = next_commit
+    swag['swagger'] = '2.0'
+    swag['host'] = serverName
+    swag['basePath'] = '/api/' + user_repo + ('/commit/' + sha + '/' if sha else '/')
+    swag['schemes'] = ['http']
+    swag['info'] = getInfoDefinition(version, repo_title, contact_name, contact_url, user_repo)
+    swag['paths'] = getPathsDefFromSpec(spec)
+
+    if prov_g:
+        prov_g.end_prov_graph()
+        swag['prov'] = prov_g.serialize(format='turtle')
+
     return swag
