@@ -1,6 +1,11 @@
+import logging
+
 from SPARQLWrapper import SPARQLWrapper, CSV, JSON
-from flask import jsonify
+from pythonql.parser.Preprocessor import makeProgramFromString
+
 import static as static
+
+glogger = logging.getLogger(__name__)
 
 SPARQL_FORMATS = {
     'text/csv': CSV,
@@ -25,7 +30,20 @@ def executeSPARQLQuery(endpoint, query, retformat):
     client.setCredentials(static.DEFAULT_ENDPOINT_USER, static.DEFAULT_ENDPOINT_PASSWORD)
     result = client.queryAndConvert()
 
-    if retformat==JSON:
-        result = jsonify(result)
-
     return result
+
+def doProjection(dataIn, projectionScript):
+    '''Programs may make use of data in the `dataIn` variable and should
+    produce data on the `dataOut` variable.'''
+    program = makeProgramFromString(projectionScript)
+    # We don't really need to initialize it, but we do it to avoid linter errors
+    dataOut = []
+    try:
+        exec(program)
+    except Exception as e:
+        glogger.error("Error while executing SPARQL projection")
+        glogger.error(projectionScript)
+        glogger.error("Encountered exception: ")
+        glogger.error(e)
+        dataOut = dataIn
+    return dataOut

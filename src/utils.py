@@ -47,13 +47,15 @@ def build_spec(user, repo, sha=None, prov=None, extraMetadata=[]):
                 glogger.info("Processing SPARQL query: {}".format(c_name))
                 glogger.info("===================================================================")
                 item = process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata)
-                items.append(item)
+                if item: # TODO: On ERROR, no item gets generated. Perhaps we should propagate the error and notify the user 
+                    items.append(item)
             elif ".tpf" in c['name']:
                 glogger.info("===================================================================")
                 glogger.info("Processing TPF query: {}".format(c_name))
                 glogger.info("===================================================================")
                 item = process_tpf_query_text(query_text, raw_repo_uri, call_name, extraMetadata)
-                items.append(item)
+                if item:
+                    items.append(item)
             else:
                 glogger.info("Ignoring unsupported source call name: {}".format(c_name))
 

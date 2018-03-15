@@ -6,6 +6,7 @@ import requests
 import logging
 import re
 from rdflib import Graph
+from SPARQLWrapper import JSON
 
 # grlc modules
 from grlc import __version__ as grlc_version
@@ -45,7 +46,7 @@ def query(user, repo, query_name, sha=None, extension=None):
 
     loader = utils.getLoader(user, repo, sha, prov=None)
 
-    query, q_type = loader.getTextForName(query_name)
+    query, q_type = loader.getTextForQueryName(query_name)
 
     # Call name implemented with SPARQL query
     if q_type == qType['SPARQL']:
@@ -99,10 +100,15 @@ def query(user, repo, query_name, sha=None, extension=None):
                 returnFormat = sparql.selectReturnFormat(request.headers['Accept'])
             response = sparql.executeSPARQLQuery(endpoint, paginated_query, returnFormat)
 
+            if returnFormat == JSON:
+                projection = loader.getProjectionForQueryName(query_name)
+                if projection:
+                    response = sparql.doProjection(response, projection)
+                # Regardless of projection, we jsonify response
+                response = jsonify(response)
+
             # Response headers
-            resp = make_response(response.text)
-            resp.headers['Server'] = 'grlc/' + grlc_version
-            resp.headers['Content-Type'] = response.headers['Content-Type']
+            resp = make_response(response)
 
         # If the query is paginated, set link HTTP headers
         if pagination:
@@ -111,6 +117,8 @@ def query(user, repo, query_name, sha=None, extension=None):
             headerLink =  pageUtils.buildPaginationHeader(count, pagination)
             resp.headers['Link'] = headerLink
 
+        resp.headers['Server'] = 'grlc/' + grlc_version
+        resp.headers['Content-Type'] = request.headers['Accept']
         return resp
     # Call name implemented with TPF query
     elif q_type == qType['TPF']:

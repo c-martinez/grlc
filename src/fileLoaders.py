@@ -7,7 +7,7 @@ from glob import glob
 from queryTypes import qType
 
 class BaseLoader:
-    def getTextForName(self, query_name):
+    def getTextForQueryName(self, query_name):
         # The URIs of all candidates
         rq_name = query_name + '.rq'
         sparql_name = query_name + '.sparql'
@@ -24,6 +24,15 @@ class BaseLoader:
                 return queryText, queryType
         # No query found...
         return '', None
+
+    def getProjectionForQueryName(self, query_name):
+        ''' TODO: DOCUMENT !!
+        Returns None if no such projection exists
+        '''
+        projectionFileName = query_name + '.pyql'
+        projectionText = self._getText(projectionFileName)
+        return projectionText
+
 
 class GithubLoader(BaseLoader):
     def __init__(self, user, repo, sha, prov):
