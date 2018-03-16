@@ -103,7 +103,7 @@ def query(user, repo, query_name, sha=None, extension=None):
             if returnFormat == JSON:
                 projection = loader.getProjectionForQueryName(query_name)
                 if projection:
-                    response = sparql.doProjection(response, projection)
+                    response = sparql.project(response, projection)
                 # Regardless of projection, we jsonify response
                 response = jsonify(response)
 

@@ -32,7 +32,7 @@ def executeSPARQLQuery(endpoint, query, retformat):
 
     return result
 
-def doProjection(dataIn, projectionScript):
+def project(dataIn, projectionScript):
     '''Programs may make use of data in the `dataIn` variable and should
     produce data on the `dataOut` variable.'''
     program = makeProgramFromString(projectionScript)

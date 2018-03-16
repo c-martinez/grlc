@@ -47,7 +47,7 @@ def build_spec(user, repo, sha=None, prov=None, extraMetadata=[]):
                 glogger.info("Processing SPARQL query: {}".format(c_name))
                 glogger.info("===================================================================")
                 item = process_sparql_query_text(query_text, raw_repo_uri, call_name, extraMetadata)
-                if item: # TODO: On ERROR, no item gets generated. Perhaps we should propagate the error and notify the user 
+                if item: # TODO: On ERROR, no item gets generated. Perhaps we should propagate the error and notify the user
                     items.append(item)
             elif ".tpf" in c['name']:
                 glogger.info("===================================================================")
@@ -58,6 +58,10 @@ def build_spec(user, repo, sha=None, prov=None, extraMetadata=[]):
                     items.append(item)
             else:
                 glogger.info("Ignoring unsupported source call name: {}".format(c_name))
+
+            projection = loader.getProjectionForQueryName(call_name)
+            if projection:
+                item['projection'] = projection
 
     return items
 
@@ -243,6 +247,12 @@ def getInfoDefinition(version, repo_title, contact_name, contact_url, user_repo)
         }
     }
 
+def getSwaggerDescriptionDef(item):
+    description = item['description'] + "\n<pre>\n{}\n</pre>".format(cgi.escape(item['query']))
+    if 'projection' in item:
+        description += "JSON results are projected according to: \n<pre>\n{}\n</pre>".format(cgi.escape(item['projection']))
+    return description
+
 def getPathsDefFromSpec(spec):
     swag_paths = {}
     for item in spec:
@@ -250,7 +260,7 @@ def getPathsDefFromSpec(spec):
         swag_paths[item['call_name']][item['method']] = {
             "tags" : item['tags'],
             "summary" : item['summary'],
-            "description" : item['description'] + "\n<pre>\n{}\n</pre>".format(cgi.escape(item['query'])),
+            "description" : getSwaggerDescriptionDef(item),
             "produces" : SPARQL_FORMATS.keys(), # ["text/csv", "application/json", "text/html"],
             "parameters": item['params'] if 'params' in item else None,
             "responses": {
