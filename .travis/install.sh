@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
-  pyenv install $PYTHON
+  pyenv local $PYENV_VERSION
   if [[ $PYENV_VERSION == 2* ]]; then
     alias pip=pip2
   fi
