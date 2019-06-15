@@ -12,6 +12,8 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
   echo "Pyenv version var: $PYENV_VERSION"
   echo "Pyenv versions"
   pyenv versions
+  pyenv init
+  echo "PATH: $PATH"
 fi
 
 if [[ $TRAVIS_BUILD_STAGE_NAME == 'Deploy' ]]; then
