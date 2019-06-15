@@ -9,11 +9,11 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     alias pip=pip3
   fi
 
-  echo "Pyenv version var: $PYENV_VERSION"
-  echo "Pyenv versions"
-  pyenv versions
-  pyenv init -
-  echo "PATH: $PATH"
+  # echo "Pyenv version var: $PYENV_VERSION"
+  # echo "Pyenv versions"
+  # pyenv versions
+  # pyenv init -
+  # echo "PATH: $PATH"
   export PATH="/Users/travis/.pyenv/shims:${PATH}"
 fi
 
@@ -28,6 +28,9 @@ python --version
 echo "Pip version"
 pip --version
 
+pip install --upgrade pip
+echo "Pip version (upgraded)"
+pip --version
 
 # Horrible hack -- but we should remove pythonql functionality soon anyway...
 pip install pythonql3
