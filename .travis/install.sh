@@ -1,13 +1,17 @@
 #!/bin/bash
 
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
-  pyenv local $PYENV_VERSION
+  pyenv global $PYENV_VERSION
   if [[ $PYENV_VERSION == 2* ]]; then
     alias pip=pip2
   fi
   if [[ $PYENV_VERSION == 3* ]]; then
     alias pip=pip3
   fi
+
+  echo "Pyenv version var: $PYENV_VERSION"
+  echo "Pyenv versions"
+  pyenv versions
 fi
 
 if [[ $TRAVIS_BUILD_STAGE_NAME == 'Deploy' ]]; then
