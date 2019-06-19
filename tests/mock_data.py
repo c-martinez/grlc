@@ -20,8 +20,6 @@ def mock_requestsGithub(uri, headers={}, params={}):
         return return_value
     else:
         targetFile = uri.replace('https://raw.githubusercontent.com/fakeuser/fakerepo/master/', path.join(base_url, ''))
-        print('REQUEST: ' + uri)
-        print('MOCK   : ' + targetFile)
         if path.exists(targetFile):
             f = open(targetFile, 'r')
             lines = f.readlines()

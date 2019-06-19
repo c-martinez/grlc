@@ -107,7 +107,6 @@ class TestLocalLoader(unittest.TestCase):
 
         # the contents of each file
         for fItem in files:
-            print('GET TEXT FOR: ', fItem)
             text = self.loader.getTextFor(fItem)
 
             # Should be some text

@@ -124,13 +124,10 @@ class LocalLoader(BaseLoader):
 
     def fetchFiles(self):
         """Returns a list of file items contained on the local repo."""
-        print("Fetching files from {}".format(self.baseDir))
         files = glob(path.join(self.baseDir, '*'))
         filesDef = []
         baseDirSlash = path.join(self.baseDir, '')
-        print("Basedir: {}".format(baseDirSlash))
         for f in files:
-            print("Found SPARQL file {}".format(f))
             relative = f.replace(baseDirSlash, '')
             filesDef.append({
                 'download_url': relative,
@@ -148,7 +145,6 @@ class LocalLoader(BaseLoader):
 
     def _getText(self, filename):
         targetFile = path.join(self.baseDir, filename)
-        print('OPEN FILE: ' + targetFile)
         if path.exists(targetFile):
             with open(targetFile, 'r') as f:
                 lines = f.readlines()
