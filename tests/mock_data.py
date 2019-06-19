@@ -2,7 +2,7 @@ from mock import Mock
 from os import path
 from glob import glob
 
-base_url = 'tests/repo/'
+base_url = './tests/repo/'
 def buildEntry(entryName):
     entryName = entryName.replace(base_url, '')
     return {
@@ -20,6 +20,8 @@ def mock_requestsGithub(uri, headers={}, params={}):
         return return_value
     else:
         targetFile = uri.replace('https://raw.githubusercontent.com/fakeuser/fakerepo/master/', base_url)
+        print('REQUEST: ' + uri)
+        print('MOCK   : ' + targetFile)
         if path.exists(targetFile):
             f = open(targetFile, 'r')
             lines = f.readlines()

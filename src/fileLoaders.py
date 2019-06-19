@@ -145,7 +145,7 @@ class LocalLoader(BaseLoader):
         return self._getText(fileItem['download_url'])
 
     def _getText(self, filename):
-        targetFile = self.baseDir + filename
+        targetFile = path.join(self.baseDir, filename)
         if path.exists(targetFile):
             with open(targetFile, 'r') as f:
                 lines = f.readlines()
