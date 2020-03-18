@@ -4,7 +4,7 @@
 import os
 from configparser import ConfigParser
 
-DEFAULT_HOST = None
+DEFAULT_HOST = '0.0.0.0'
 DEFAULT_PORT = 8088
 
 # XSD datatypes for parsing queries with parameters
@@ -35,12 +35,15 @@ config_fallbacks = {
     'password': '',
     'server_name': '',
     'local_sparql_dir': '',
-    'debug': 'False'
+    'debug': 'False',
+    'certificate': None,
+    'privatekey': None
 }
-config = ConfigParser(config_fallbacks)
+config = ConfigParser(config_fallbacks, allow_no_value=True)
 config.add_section('auth')
 config.add_section('defaults')
 config.add_section('local')
+config.add_section('ssl')
 config_filename = os.path.join(os.getcwd(), 'config.ini')
 print('Reading config file: ', config_filename)
 config.read(config_filename)
@@ -63,3 +66,7 @@ LOG_DEBUG_MODE = config.getboolean('defaults', 'debug')
 
 # Pattern for INSERT query call names
 INSERT_PATTERN = "INSERT DATA { GRAPH ?_g_iri { <s> <p> <o> }}"
+
+# SSL config files
+CERTFILE = config.get('ssl', 'certificate')
+KEYFILE = config.get('ssl', 'privatekey')

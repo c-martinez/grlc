@@ -39,7 +39,9 @@ def runViaGunicorn(port=8088):
     options = {
         'bind': '%s:%d' % ('0.0.0.0', port),
         'workers': 20,
-        'debug': static.LOG_DEBUG_MODE
+        'debug': static.LOG_DEBUG_MODE,
+        'certfile': static.CERTFILE,
+        'keyfile': static.KEYFILE,
     }
     StandaloneApplication(grlc_app, options).run()
 

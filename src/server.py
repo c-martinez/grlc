@@ -140,4 +140,5 @@ def relative_path():
 
 # Main thread
 if __name__ == '__main__':
-    app.run(host=static.DEFAULT_HOST, port=static.DEFAULT_PORT, debug=True)
+    context = (static.CERTFILE, static.KEYFILE) if (static.CERTFILE and static.KEYFILE) else None   #certificate and key files
+    app.run(host=static.DEFAULT_HOST, port=static.DEFAULT_PORT, debug=True, ssl_context=context)
