@@ -8,7 +8,7 @@ map_uidgid
 
 case ${1} in
   app:start)
-    setup_nginx
+    # setup_nginx
     # initialize_system
     # configure_gitlab
     # configure_gitlab_shell
@@ -26,8 +26,11 @@ case ${1} in
         sed -i "s|http://dbpedia.org/sparql|${GRLC_SPARQL_ENDPOINT}|" config.ini
         # enable/disable debugging
         sed -i "s/debug = False/debug = ${DEBUG}/" config.ini
+        # configure location of ssl certificate and private key files
+        sed -i "s|certificate =|certificate = ${GRLC_SSL_CERTIFICATE}|" config.ini
+        sed -i "s|privatekey =|privatekey = ${GRLC_SSL_PRIVATEKEY}|" config.ini
 
-        grlc-server --port=8088
+        grlc-server --port=80
         # migrate_database
         # rm -rf /var/run/supervisor.sock
         # exec /usr/bin/supervisord -nc /etc/supervisor/supervisord.conf

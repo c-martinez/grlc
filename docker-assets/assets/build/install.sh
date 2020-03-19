@@ -24,14 +24,8 @@ pip install .
 
 npm install git2prov
 
-#move nginx logs to ${GITLAB_LOG_DIR}/nginx
-sed -i \
- -e "s|access_log /var/log/nginx/access.log;|access_log ${GRLC_LOG_DIR}/nginx/access.log;|" \
- -e "s|error_log /var/log/nginx/error.log;|error_log ${GRLC_LOG_DIR}/nginx/error.log;|" \
- /etc/nginx/nginx.conf
-
- # configure gitlab log rotation
- cat > /etc/logrotate.d/grlc << EOF
+# configure gitlab log rotation
+cat > /etc/logrotate.d/grlc << EOF
  ${GRLC_LOG_DIR}/grlc/*.log {
    weekly
    missingok
@@ -41,17 +35,4 @@ sed -i \
    notifempty
    copytruncate
  }
- EOF
-
- # configure gitlab vhost log rotation
- cat > /etc/logrotate.d/grlc-nginx << EOF
- ${GRLC_LOG_DIR}/nginx/*.log {
-   weekly
-   missingok
-   rotate 52
-   compress
-   delaycompress
-   notifempty
-   copytruncate
- }
- EOF
+EOF
