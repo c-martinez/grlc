@@ -20,6 +20,7 @@ cd ${GRLC_INSTALL_DIR}
 chown ${GRLC_USER}:${GRLC_USER} ${GRLC_HOME} -R
 
 pip install --upgrade pip
+pip install docutils==0.17.1
 pip install .
 
 npm install git2prov
